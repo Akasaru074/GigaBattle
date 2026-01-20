@@ -19,6 +19,13 @@ Window {
     property var myBoard: []
     property var enemyBoard: []
 
+    function checkLoss() {
+        for(let i = 0; i < 100; i++) {
+            if (myBoard[i] === 1) return false;
+        }
+        return true;
+    }
+
     // --- ЛОГИКА СЕТИ ---
     Connections {
         target: network
@@ -62,11 +69,17 @@ Window {
             newBoard[index] = isHit ? 3 : 2
             myBoard = newBoard
 
-            let isKill = false
-
-            network.sendHitResult(x, y, isHit, isKill)
-
+            let gameOver = false
             if (isHit) {
+                gameOver = checkLoss()
+            }
+
+            network.sendHitResult(x, y, isHit, false, gameOver)
+
+            if (gameOver) {
+                statusText = "ВЫ ПРОИГРАЛИ! Все корабли уничтожены."
+                myTurn = false
+            } else if (isHit) {
                 statusText = "Противник попал! Он ходит снова."
                 myTurn = false
             } else {
@@ -79,15 +92,17 @@ Window {
          * Обработка результата нашего выстрела.
          * Клиент врага ответил, попали мы или нет.
          */
-        function onIncomingResult(x, y, isHit, isKill) {
+        function onIncomingResult(x, y, isHit, isKill, isGameOver) {
             let index = y * 10 + x
             let newBoard = enemyBoard.slice()
 
-            // 3 - попал, 2 - мимо
             newBoard[index] = isHit ? 3 : 2
             enemyBoard = newBoard
 
-            if (isHit) {
+            if (isGameOver) {
+                statusText = "ПОБЕДА! Вы уничтожили все корабли врага."
+                myTurn = false
+            } else if (isHit) {
                 statusText = "Вы попали! Стреляйте еще."
                 myTurn = true
             } else {

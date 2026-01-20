@@ -47,7 +47,7 @@ void GameNetworkManager::onTextMessageReceived(QString message)
     }
     else if (type == "RESULT") {
         emit incomingResult(obj["x"].toInt(), obj["y"].toInt(),
-                            obj["isHit"].toBool(), obj["isKill"].toBool());
+                            obj["isHit"].toBool(), obj["isKill"].toBool(), obj["isGameOver"].toBool());
     }
     else if (type == "ERROR") {
         emit errorOccurred(obj["message"].toString());
@@ -77,13 +77,10 @@ void GameNetworkManager::fire(int x, int y)
     json["type"] = "FIRE";
     json["x"] = x;
     json["y"] = y;
-
-    qDebug() << "Fire!";
-
     sendJson(json);
 }
 
-void GameNetworkManager::sendHitResult(int x, int y, bool isHit, bool isKill)
+void GameNetworkManager::sendHitResult(int x, int y, bool isHit, bool isKill, bool isGameOver)
 {
     QJsonObject json;
     json["type"] = "RESULT";
@@ -91,6 +88,7 @@ void GameNetworkManager::sendHitResult(int x, int y, bool isHit, bool isKill)
     json["y"] = y;
     json["isHit"] = isHit;
     json["isKill"] = isKill;
+    json["isGameOver"] = isGameOver;
     sendJson(json);
 }
 

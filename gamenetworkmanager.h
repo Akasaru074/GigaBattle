@@ -15,7 +15,7 @@ public:
     Q_INVOKABLE void createGame();
     Q_INVOKABLE void joinGame(const QString &sessionId);
     Q_INVOKABLE void fire(int x, int y);
-    Q_INVOKABLE void sendHitResult(int x, int y, bool isHit, bool isKill);
+    Q_INVOKABLE void sendHitResult(int x, int y, bool isHit, bool isKill, bool isGameOver);
 
 signals:
     void connected();
@@ -25,7 +25,7 @@ signals:
     void opponentLeft();
 
     void incomingFire(int x, int y);
-    void incomingResult(int x, int y, bool isHit, bool isKill);
+    void incomingResult(int x, int y, bool isHit, bool isKill, bool isGameOver);
     void errorOccurred(QString message);
 
 private slots:
