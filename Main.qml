@@ -4,29 +4,29 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 Window {
-    width: 800
+    width: 900
     height: 600
     visible: true
-    title: qsTr("Sea Battle - Qt Quick")
+    title: qsTr("Giga battle")
 
-    // --- СОСТОЯНИЕ ИГРЫ ---
     property string currentScreen: "MENU"
     property string sessionId: ""
+
+    property bool isSetupPhase: false
+    property bool iAmReady: false
+    property bool opponentIsReady: false
+
+    property bool gameStarted: iAmReady && opponentIsReady
+
     property bool myTurn: false
     property string statusText: "Добро пожаловать"
 
-    // 0=вода, 1=корабль, 2=мимо, 3=попал
+    property var shipsQueue: [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
+    property bool placeHorizontal: true
+
     property var myBoard: []
     property var enemyBoard: []
 
-    function checkLoss() {
-        for(let i = 0; i < 100; i++) {
-            if (myBoard[i] === 1) return false;
-        }
-        return true;
-    }
-
-    // --- ЛОГИКА СЕТИ ---
     Connections {
         target: network
 
@@ -37,45 +37,34 @@ Window {
             currentScreen = "LOBBY"
             statusText = "ID сессии: " + id + ". Ждем игрока..."
             myTurn = true
-            initializeBoards()
         }
 
         function onGameJoined() {
             currentScreen = "GAME"
-            statusText = "Вы подключились! Ход противника."
             myTurn = false
-            initializeBoards()
+            startSetupPhase()
         }
 
         function onOpponentJoined() {
             currentScreen = "GAME"
-            statusText = "Игрок найден! Ваш ход."
+            startSetupPhase()
         }
 
-        /* *
-         * Обработка выстрела ПРОТИВНИКА по нам.
-         * Проверяет, попал ли враг в наш корабль.
-         * Если попал (1) -> меняем на 3 (ранен), отправляем "isHit: true".
-         * Если мимо (0) -> меняем на 2 (мимо), отправляем "isHit: false".
-         * Если враг попал, мы НЕ меняем myTurn, он продолжает ходить.
-         * Если промахнулся - ход переходит к нам.
-         */
+        function onOpponentReady() {
+            opponentIsReady = true
+            checkGameStart()
+        }
+
         function onIncomingFire(x, y) {
             let index = y * 10 + x
             let cellValue = myBoard[index]
             let isHit = (cellValue === 1)
-
             let newBoard = myBoard.slice()
             newBoard[index] = isHit ? 3 : 2
             myBoard = newBoard
-
             let gameOver = false
-            if (isHit) {
-                gameOver = checkLoss()
-            }
-
+            if (isHit) gameOver = checkLoss()
             network.sendHitResult(x, y, isHit, false, gameOver)
-
             if (gameOver) {
                 statusText = "ВЫ ПРОИГРАЛИ! Все корабли уничтожены."
                 myTurn = false
@@ -88,17 +77,11 @@ Window {
             }
         }
 
-        /*
-         * Обработка результата нашего выстрела.
-         * Клиент врага ответил, попали мы или нет.
-         */
         function onIncomingResult(x, y, isHit, isKill, isGameOver) {
             let index = y * 10 + x
             let newBoard = enemyBoard.slice()
-
             newBoard[index] = isHit ? 3 : 2
             enemyBoard = newBoard
-
             if (isGameOver) {
                 statusText = "ПОБЕДА! Вы уничтожили все корабли врага."
                 myTurn = false
@@ -112,48 +95,76 @@ Window {
         }
     }
 
-    // --- ИНИЦИАЛИЗАЦИЯ ПОЛЕЙ ---
-    function initializeBoards() {
-        let empty = []
-        for(let i=0; i<100; i++) empty.push(0)
-        enemyBoard = empty
-
-        myBoard = placeShipsRandomly()
-    }
-
-    function placeShipsRandomly() {
-        let board = []
-        for(let i=0; i<100; i++) board.push(0)
-
-        let ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
-
-        for (let size of ships) {
-            let placed = false
-            while (!placed) {
-                let horizontal = Math.random() > 0.5
-                let x = Math.floor(Math.random() * 10)
-                let y = Math.floor(Math.random() * 10)
-
-                if (canPlace(board, x, y, size, horizontal)) {
-                    for(let k=0; k<size; k++) {
-                        let idx = horizontal ? y*10 + (x+k) : (y+k)*10 + x
-                        board[idx] = 1
-                    }
-                    placed = true
-                }
+    function checkGameStart() {
+        if (gameStarted) {
+            isSetupPhase = false
+            if (myTurn) statusText = "Все готовы! ВАШ ХОД."
+            else statusText = "Все готовы! Ход противника."
+        } else {
+            if (iAmReady && !opponentIsReady) {
+                statusText = "Ожидание готовности соперника..."
+            } else if (!iAmReady && opponentIsReady) {
+                statusText = "Соперник уже готов! Заканчивайте расстановку."
             }
         }
-        return board
     }
 
+    function startSetupPhase() {
+        let empty = []
+        for(let i=0; i<100; i++) empty.push(0)
+        myBoard = empty
+        enemyBoard = empty.slice()
+
+        shipsQueue = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
+
+        isSetupPhase = true
+        iAmReady = false
+        opponentIsReady = false
+
+        statusText = "Режим расстановки. Нажмите на клетку."
+    }
+
+    function tryPlaceShip(x, y) {
+        if (shipsQueue.length === 0) return
+
+        let size = shipsQueue[0]
+
+        if (canPlace(myBoard, x, y, size, placeHorizontal)) {
+            let newBoard = myBoard.slice()
+            for(let k=0; k<size; k++) {
+                let idx = placeHorizontal ? y*10 + (x+k) : (y+k)*10 + x
+                newBoard[idx] = 1
+            }
+            myBoard = newBoard
+
+            let newQueue = shipsQueue.slice()
+            newQueue.shift()
+            shipsQueue = newQueue
+
+            if (shipsQueue.length === 0) {
+                iAmReady = true
+                network.sendReady()
+                checkGameStart()
+            }
+        }
+    }
+
+    function resetShips() { startSetupPhase() }
+    function checkLoss() {
+        for(let i = 0; i < 100; i++) { if (myBoard[i] === 1) return false; }
+        return true;
+    }
     function canPlace(board, x, y, size, hor) {
         if (hor && (x + size > 10)) return false
         if (!hor && (y + size > 10)) return false
-
-
-        for(let k=0; k<size; k++) {
-             let idx = hor ? y*10 + (x+k) : (y+k)*10 + x
-             if (board[idx] !== 0) return false
+        let startX = Math.max(0, x - 1)
+        let endX = Math.min(9, hor ? x + size : x + 1)
+        let startY = Math.max(0, y - 1)
+        let endY = Math.min(9, hor ? y + 1 : y + size)
+        for (let i = startX; i <= endX; i++) {
+            for (let j = startY; j <= endY; j++) {
+                if (board[j * 10 + i] !== 0) return false
+            }
         }
         return true
     }
@@ -170,38 +181,22 @@ Window {
             color: "black"
         }
 
+        // МЕНЮ
         ColumnLayout {
             visible: currentScreen === "MENU"
             Layout.alignment: Qt.AlignCenter
             spacing: 20
-
-            TextField {
-                id: serverUrlField
-                text: "ws://localhost:3000"
-                placeholderText: "Адрес сервера"
-                Layout.preferredWidth: 200
-            }
-            Button {
-                text: "Подключиться к серверу"
-                onClicked: network.connectToServer(serverUrlField.text)
-            }
-
-            Item { height: 20; width: 1 } // Spacer
-
-            Button {
-                text: "1. Создать игру"
-                onClicked: network.createGame()
-            }
+            TextField { id: serverUrlField; text: "ws://localhost:3000"; placeholderText: "Адрес сервера"; Layout.preferredWidth: 200 }
+            Button { text: "Подключиться к серверу"; onClicked: network.connectToServer(serverUrlField.text) }
+            Item { height: 20; width: 1 }
+            Button { text: "1. Создать игру"; onClicked: network.createGame() }
             RowLayout {
                 TextField { id: joinIdField; placeholderText: "ID сессии" }
-                Button {
-                    text: "2. Присоединиться"
-                    onClicked: network.joinGame(joinIdField.text)
-                }
+                Button { text: "2. Присоединиться"; onClicked: network.joinGame(joinIdField.text) }
             }
         }
 
-        // ЭКРАН ЛОББИ
+        // ЛОББИ
         ColumnLayout {
             visible: currentScreen === "LOBBY"
             Layout.alignment: Qt.AlignCenter
@@ -209,7 +204,7 @@ Window {
             BusyIndicator { running: true }
         }
 
-        // ЭКРАН ИГРЫ
+        // ИГРА
         RowLayout {
             visible: currentScreen === "GAME"
             Layout.fillWidth: true
@@ -217,25 +212,40 @@ Window {
             Layout.margins: 20
             spacing: 50
 
-            // Наше поле
+            // МОЕ ПОЛЕ
             ColumnLayout {
                 Text { text: "Мой флот"; font.bold: true }
                 CellGrid {
                     Layout.preferredWidth: 300
                     Layout.preferredHeight: 300
                     gridData: myBoard
-                    interactive: false
+                    interactive: isSetupPhase && !iAmReady
+                    onCellClicked: (x, y) => { tryPlaceShip(x, y) }
+                }
+
+                // ПАНЕЛЬ УПРАВЛЕНИЯ
+                ColumnLayout {
+                    visible: isSetupPhase && !iAmReady
+                    spacing: 5
+                    Text { text: shipsQueue.length > 0 ? "Ставим: " + shipsQueue[0] + "-палубный" : "Готово!"; font.bold: true; color: "#D32F2F" }
+                    RowLayout {
+                        Button { text: placeHorizontal ? "Горизонтально ⮕" : "Вертикально ⬇"; onClicked: placeHorizontal = !placeHorizontal }
+                        Button { text: "Сброс"; onClicked: resetShips() }
+                    }
                 }
             }
 
-            // Поле врага
+            // ПОЛЕ ВРАГА
             ColumnLayout {
+                opacity: gameStarted ? 1.0 : 0.3
+
                 Text { text: "Флот противника"; font.bold: true; color: myTurn ? "green" : "black" }
                 CellGrid {
                     Layout.preferredWidth: 300
                     Layout.preferredHeight: 300
                     gridData: enemyBoard
-                    interactive: myTurn
+
+                    interactive: gameStarted && myTurn
 
                     onCellClicked: (x, y) => {
                         let idx = y * 10 + x

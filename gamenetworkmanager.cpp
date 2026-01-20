@@ -42,6 +42,9 @@ void GameNetworkManager::onTextMessageReceived(QString message)
     else if (type == "OPPONENT_LEFT") {
         emit opponentLeft();
     }
+    else if (type == "READY") {
+        emit opponentReady();
+    }
     else if (type == "FIRE") {
         emit incomingFire(obj["x"].toInt(), obj["y"].toInt());
     }
@@ -96,4 +99,11 @@ void GameNetworkManager::sendJson(const QJsonObject &json)
 {
     QJsonDocument doc(json);
     m_webSocket.sendTextMessage(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+}
+
+void GameNetworkManager::sendReady()
+{
+    QJsonObject json;
+    json["type"] = "READY";
+    sendJson(json);
 }

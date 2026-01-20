@@ -16,6 +16,7 @@ public:
     Q_INVOKABLE void joinGame(const QString &sessionId);
     Q_INVOKABLE void fire(int x, int y);
     Q_INVOKABLE void sendHitResult(int x, int y, bool isHit, bool isKill, bool isGameOver);
+    Q_INVOKABLE void sendReady();
 
 signals:
     void connected();
@@ -23,6 +24,7 @@ signals:
     void gameJoined();
     void opponentJoined();
     void opponentLeft();
+    void opponentReady();
 
     void incomingFire(int x, int y);
     void incomingResult(int x, int y, bool isHit, bool isKill, bool isGameOver);
