@@ -19,6 +19,7 @@ qt_add_qml_module(appGigaBattle
         Main.qml
         SOURCES gamenetworkmanager.h gamenetworkmanager.cpp
         QML_FILES CellGrid.qml
+        RESOURCES README.md
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
